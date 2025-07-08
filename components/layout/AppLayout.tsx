@@ -1,7 +1,6 @@
 "use client"
 
 import type React from "react"
-
 import { useState, useEffect } from "react"
 import { motion } from "framer-motion"
 import { Menu, Bell, User, Shield, Wifi, WifiOff } from "lucide-react"

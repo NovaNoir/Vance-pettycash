@@ -1,102 +1,156 @@
 import DOMPurify from "isomorphic-dompurify"
 
-// Input sanitization utilities
-export const sanitizeInput = (input: string): string => {
-  if (!input) return ""
-  return DOMPurify.sanitize(input.trim())
-}
+/* ----------------------------------------------------------------
+ *  Sanitation helpers
+ * ---------------------------------------------------------------- */
+export const sanitizeInput = (input: string): string => (input ? DOMPurify.sanitize(input.trim()) : "")
 
+/**
+ * Convert a user-entered money string to a positive number.
+ * Strips everything except digits, - (minus) & . (decimal point).
+ */
 export const sanitizeAmount = (amount: string): number => {
-  const sanitized = amount.replace(/[^0-9.-]/g, "")
-  const parsed = Number.parseFloat(sanitized)
+  const numeric = amount.replace(/[^0-9.-]/g, "")
+  const parsed = Number.parseFloat(numeric)
   return isNaN(parsed) ? 0 : Math.max(0, parsed)
 }
 
-// Validation utilities
-export const validateEmail = (email: string): boolean => {
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-  return emailRegex.test(email)
-}
+/* ----------------------------------------------------------------
+ *  Validation helpers
+ * ---------------------------------------------------------------- */
+export const validateEmail = (email: string): boolean => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
 
 export const validateAmount = (amount: number, max?: number): { isValid: boolean; error?: string } => {
-  if (amount <= 0) {
-    return { isValid: false, error: "Amount must be greater than 0" }
-  }
-  if (max && amount > max) {
-    return { isValid: false, error: `Amount cannot exceed ${max.toFixed(2)}` }
-  }
+  if (amount <= 0) return { isValid: false, error: "Amount must be greater than 0" }
+  if (max && amount > max)
+    return {
+      isValid: false,
+      error: `Amount cannot exceed ${max.toFixed(2)}`,
+    }
   return { isValid: true }
 }
 
 export const validateDate = (date: string): { isValid: boolean; error?: string } => {
-  const selectedDate = new Date(date)
+  const selected = new Date(date)
   const today = new Date()
 
-  if (isNaN(selectedDate.getTime())) {
-    return { isValid: false, error: "Invalid date format" }
-  }
-
-  if (selectedDate > today) {
-    return { isValid: false, error: "Date cannot be in the future" }
-  }
-
+  if (isNaN(selected.getTime())) return { isValid: false, error: "Invalid date format" }
+  if (selected > today) return { isValid: false, error: "Date cannot be in the future" }
   return { isValid: true }
 }
 
-// Rate limiting for client-side
+/* ----------------------------------------------------------------
+ *  Rate limiting (client-side only)
+ * ---------------------------------------------------------------- */
 class RateLimiter {
-  private attempts: Map<string, number[]> = new Map()
+  private attempts = new Map<string, number[]>()
 
-  isAllowed(key: string, maxAttempts = 5, windowMs = 60000): boolean {
+  isAllowed(key: string, maxAttempts = 5, windowMs = 60_000): boolean {
     const now = Date.now()
-    const attempts = this.attempts.get(key) || []
+    const windowAttempts = this.attempts.get(key) ?? []
+    const recent = windowAttempts.filter((t) => now - t < windowMs)
 
-    // Remove old attempts outside the window
-    const validAttempts = attempts.filter((time) => now - time < windowMs)
+    if (recent.length >= maxAttempts) return false
 
-    if (validAttempts.length >= maxAttempts) {
-      return false
-    }
-
-    validAttempts.push(now)
-    this.attempts.set(key, validAttempts)
+    recent.push(now)
+    this.attempts.set(key, recent)
     return true
+  }
+
+  reset(key: string) {
+    this.attempts.delete(key)
   }
 }
 
 export const rateLimiter = new RateLimiter()
 
-// Error logging utility
-export const logError = (error: Error, context?: Record<string, any>) => {
-  const errorData = {
+/* ----------------------------------------------------------------
+ *  Error logging (restored)
+ * ---------------------------------------------------------------- */
+export const logError = (error: Error, context?: Record<string, unknown>) => {
+  const payload = {
     message: error.message,
     stack: error.stack,
-    timestamp: new Date().toISOString(),
     context,
-    userAgent: typeof window !== "undefined" ? window.navigator.userAgent : "server",
+    timestamp: new Date().toISOString(),
+    userAgent: typeof window !== "undefined" ? window.navigator.userAgent : "server-side",
   }
 
-  // In production, send to logging service
-  console.error("Application Error:", errorData)
+  // eslint-disable-next-line no-console
+  console.error("Application Error:", payload)
 
-  // Could integrate with services like Sentry, LogRocket, etc.
-  if (typeof window !== "undefined" && window.gtag) {
-    window.gtag("event", "exception", {
+  /* Example: send to an external service
+     fetch("/api/log", { method: "POST", body: JSON.stringify(payload) })
+  */
+
+  if (typeof window !== "undefined" && (window as any).gtag) {
+    ;(window as any).gtag("event", "exception", {
       description: error.message,
       fatal: false,
     })
   }
 }
 
-// Secure session management utilities
+/* ----------------------------------------------------------------
+ *  Misc. helpers
+ * ---------------------------------------------------------------- */
 export const generateSessionId = (): string => {
-  const array = new Uint8Array(32)
+  const bytes = new Uint8Array(32)
   if (typeof window !== "undefined" && window.crypto) {
-    window.crypto.getRandomValues(array)
+    window.crypto.getRandomValues(bytes)
   }
-  return Array.from(array, (byte) => byte.toString(16).padStart(2, "0")).join("")
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("")
 }
 
-export const isSecureContext = (): boolean => {
-  return typeof window !== "undefined" && (window.isSecureContext || window.location.protocol === "https:")
+export const isSecureContext = (): boolean =>
+  typeof window !== "undefined" ? window.isSecureContext || window.location.protocol === "https:" : true
+
+/* ----------------------------------------------------------------
+ *  Optional secure localStorage wrapper (retains previous addition)
+ * ---------------------------------------------------------------- */
+const generateHash = (data: string): string => {
+  let hash = 0
+  for (let i = 0; i < data.length; i++) {
+    // eslint-disable-next-line no-bitwise
+    hash = (hash << 5) - hash + data.charCodeAt(i)
+    // eslint-disable-next-line no-bitwise
+    hash |= 0
+  }
+  return Math.abs(hash).toString(36)
+}
+
+export const secureStorage = {
+  setItem(key: string, value: unknown): void {
+    try {
+      const serialized = JSON.stringify({
+        data: value,
+        time: Date.now(),
+        hash: generateHash(JSON.stringify(value)),
+      })
+      localStorage.setItem(key, serialized)
+    } catch (err) {
+      console.error("secureStorage.setItem failed:", err)
+    }
+  },
+
+  getItem<T = unknown>(key: string): T | null {
+    try {
+      const raw = localStorage.getItem(key)
+      if (!raw) return null
+      const parsed = JSON.parse(raw)
+      if (generateHash(JSON.stringify(parsed.data)) !== parsed.hash) {
+        console.warn("secureStorage integrity check failed for", key)
+        localStorage.removeItem(key)
+        return null
+      }
+      return parsed.data as T
+    } catch (err) {
+      console.error("secureStorage.getItem failed:", err)
+      return null
+    }
+  },
+
+  removeItem(key: string): void {
+    localStorage.removeItem(key)
+  },
 }

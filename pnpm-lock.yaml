@@ -166,10 +166,10 @@ importers:
         specifier: ^18
         version: 18.0.0
       autoprefixer:
-        specifier: ^10.4.16
+        specifier: ^10.0.1
         version: 10.4.20(postcss@8.5.0)
       eslint:
-        specifier: ^8.54.0
+        specifier: ^8
         version: 8.54.0
       eslint-config-next:
         specifier: 14.0.4
@@ -178,7 +178,7 @@ importers:
         specifier: ^8.5
         version: 8.5.0
       tailwindcss:
-        specifier: ^3.3.5
+        specifier: ^3.3.0
         version: 3.4.17
       typescript:
         specifier: ^5

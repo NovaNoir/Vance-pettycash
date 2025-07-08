@@ -1,13 +1,12 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useMemo } from "react"
 import { motion } from "framer-motion"
-import { Calculator, AlertTriangle, CheckCircle, XCircle, Save } from "lucide-react"
+import { Scale, CheckCircle, AlertTriangle, Calculator, FileText, Calendar } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { AppLayout } from "@/components/layout/AppLayout"
@@ -17,10 +16,10 @@ import { useToast } from "@/hooks/use-toast"
 interface ReconciliationRecord {
   id: string
   date: string
-  theoreticalBalance: number
-  actualCash: number
+  systemBalance: number
+  physicalBalance: number
   difference: number
-  explanation?: string
+  notes?: string
   timestamp: number
 }
 
@@ -28,9 +27,9 @@ export default function ReconcilePage() {
   const { state } = usePettyCash()
   const { toast } = useToast()
 
-  const [actualCash, setActualCash] = useState("")
-  const [explanation, setExplanation] = useState("")
-  const [hasReconciled, setHasReconciled] = useState(false)
+  const [physicalBalance, setPhysicalBalance] = useState("")
+  const [notes, setNotes] = useState("")
+  const [isReconciling, setIsReconciling] = useState(false)
   const [reconciliationHistory, setReconciliationHistory] = useState<ReconciliationRecord[]>(() => {
     if (typeof window !== "undefined") {
       const stored = localStorage.getItem("reconciliationHistory")
@@ -39,51 +38,70 @@ export default function ReconcilePage() {
     return []
   })
 
-  const actualAmount = Number.parseFloat(actualCash) || 0
-  const difference = actualAmount - state.balance
-  const isDifferenceSignificant = Math.abs(difference) > 0.01
+  const reconciliationData = useMemo(() => {
+    const physicalAmount = Number.parseFloat(physicalBalance) || 0
+    const difference = physicalAmount - state.balance
+    const isBalanced = Math.abs(difference) < 0.01 // Allow for small rounding differences
 
-  const handleReconcile = () => {
-    if (!actualCash || isNaN(actualAmount)) {
+    return {
+      systemBalance: state.balance,
+      physicalBalance: physicalAmount,
+      difference,
+      isBalanced,
+      hasPhysicalInput: physicalBalance !== "",
+    }
+  }, [state.balance, physicalBalance])
+
+  const handleReconcile = async () => {
+    if (!reconciliationData.hasPhysicalInput) {
       toast({
-        title: "Invalid Input",
-        description: "Please enter a valid cash amount",
+        title: "Missing Information",
+        description: "Please enter the physical cash count",
         variant: "destructive",
       })
       return
     }
 
-    const reconciliation: ReconciliationRecord = {
-      id: `REC-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      date: new Date().toISOString().split("T")[0],
-      theoreticalBalance: state.balance,
-      actualCash: actualAmount,
-      difference,
-      explanation: explanation.trim() || undefined,
-      timestamp: Date.now(),
+    setIsReconciling(true)
+
+    try {
+      // Simulate processing delay
+      await new Promise((resolve) => setTimeout(resolve, 1000))
+
+      const reconciliationRecord: ReconciliationRecord = {
+        id: `REC-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        date: new Date().toISOString().split("T")[0],
+        systemBalance: reconciliationData.systemBalance,
+        physicalBalance: reconciliationData.physicalBalance,
+        difference: reconciliationData.difference,
+        notes,
+        timestamp: Date.now(),
+      }
+
+      const updatedHistory = [reconciliationRecord, ...reconciliationHistory]
+      setReconciliationHistory(updatedHistory)
+      localStorage.setItem("reconciliationHistory", JSON.stringify(updatedHistory))
+
+      toast({
+        title: reconciliationData.isBalanced ? "Reconciliation Complete" : "Discrepancy Recorded",
+        description: reconciliationData.isBalanced
+          ? "Your cash count matches the system balance"
+          : `Discrepancy of $${Math.abs(reconciliationData.difference).toFixed(2)} has been recorded`,
+        variant: reconciliationData.isBalanced ? "default" : "destructive",
+      })
+
+      // Reset form
+      setPhysicalBalance("")
+      setNotes("")
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to complete reconciliation. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsReconciling(false)
     }
-
-    const updatedHistory = [reconciliation, ...reconciliationHistory].slice(0, 10) // Keep last 10 records
-    setReconciliationHistory(updatedHistory)
-
-    // Save to localStorage
-    localStorage.setItem("reconciliationHistory", JSON.stringify(updatedHistory))
-
-    setHasReconciled(true)
-
-    toast({
-      title: "Reconciliation Complete",
-      description: isDifferenceSignificant
-        ? `Discrepancy of $${Math.abs(difference).toFixed(2)} recorded`
-        : "Cash count matches theoretical balance",
-      variant: isDifferenceSignificant ? "destructive" : "default",
-    })
-  }
-
-  const resetForm = () => {
-    setActualCash("")
-    setExplanation("")
-    setHasReconciled(false)
   }
 
   if (!state.isInitialized) {
@@ -108,213 +126,194 @@ export default function ReconcilePage() {
     <AppLayout>
       <div className="max-w-4xl mx-auto space-y-8">
         <div>
-          <h1 className="text-3xl font-bold">Cash Reconciliation</h1>
-          <p className="text-muted-foreground">Compare actual cash on hand with the theoretical balance</p>
+          <h1 className="text-3xl font-bold">Reconcile Cash</h1>
+          <p className="text-muted-foreground">
+            Compare your physical cash count with the system balance to ensure accuracy
+          </p>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Reconciliation Form */}
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
-                  <Calculator className="h-5 w-5" />
-                  <span>Current Reconciliation</span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                {/* Theoretical Balance */}
-                <div className="bg-blue-50 dark:bg-blue-950 p-4 rounded-lg">
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm font-medium text-blue-700 dark:text-blue-300">Theoretical Balance</span>
-                    <span className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-                      ${state.balance.toFixed(2)}
-                    </span>
-                  </div>
-                  <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">Based on recorded transactions</p>
+        {/* Current System Balance */}
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
+          <Alert className="border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-950">
+            <Calculator className="h-4 w-4 text-blue-600" />
+            <AlertDescription className="text-blue-800 dark:text-blue-200">
+              <strong>System Balance:</strong> ${state.balance.toFixed(2)} based on {state.transactions.length} recorded
+              transactions
+            </AlertDescription>
+          </Alert>
+        </motion.div>
+
+        {/* Reconciliation Form */}
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center space-x-2">
+                <Scale className="h-5 w-5" />
+                <span>Cash Count Reconciliation</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <Label htmlFor="systemBalance">System Balance</Label>
+                  <Input id="systemBalance" value={`$${state.balance.toFixed(2)}`} disabled className="bg-muted" />
+                  <p className="text-sm text-muted-foreground">Calculated from transaction history</p>
                 </div>
 
-                {/* Actual Cash Input */}
                 <div className="space-y-2">
-                  <Label htmlFor="actualCash">Actual Cash on Hand ($)</Label>
+                  <Label htmlFor="physicalBalance">Physical Cash Count *</Label>
                   <Input
-                    id="actualCash"
+                    id="physicalBalance"
                     type="number"
                     step="0.01"
                     min="0"
-                    value={actualCash}
-                    onChange={(e) => setActualCash(e.target.value)}
-                    placeholder="Enter actual cash amount"
-                    disabled={hasReconciled}
+                    value={physicalBalance}
+                    onChange={(e) => setPhysicalBalance(e.target.value)}
+                    placeholder="0.00"
                   />
+                  <p className="text-sm text-muted-foreground">Count all physical cash and enter the total</p>
                 </div>
+              </div>
 
-                {/* Difference Display */}
-                {actualCash && !isNaN(actualAmount) && (
-                  <motion.div
-                    initial={{ opacity: 0, scale: 0.95 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    className={`p-4 rounded-lg ${
-                      isDifferenceSignificant
-                        ? difference > 0
-                          ? "bg-yellow-50 dark:bg-yellow-950"
-                          : "bg-red-50 dark:bg-red-950"
-                        : "bg-green-50 dark:bg-green-950"
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-2">
-                        {isDifferenceSignificant ? (
-                          difference > 0 ? (
-                            <AlertTriangle className="h-5 w-5 text-yellow-600" />
-                          ) : (
-                            <XCircle className="h-5 w-5 text-red-600" />
-                          )
-                        ) : (
-                          <CheckCircle className="h-5 w-5 text-green-600" />
-                        )}
-                        <span className="font-medium">
-                          {isDifferenceSignificant ? (difference > 0 ? "Overage" : "Shortage") : "Balanced"}
-                        </span>
-                      </div>
-                      <span
-                        className={`text-xl font-bold ${
-                          isDifferenceSignificant
-                            ? difference > 0
-                              ? "text-yellow-600"
+              <div className="space-y-2">
+                <Label htmlFor="notes">Notes (Optional)</Label>
+                <Input
+                  id="notes"
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  placeholder="Any observations or explanations for discrepancies..."
+                />
+              </div>
+
+              {/* Reconciliation Summary */}
+              {reconciliationData.hasPhysicalInput && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className={`rounded-lg p-4 border ${
+                    reconciliationData.isBalanced
+                      ? "bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-800"
+                      : "bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-800"
+                  }`}
+                >
+                  <div className="flex items-center space-x-2 mb-3">
+                    {reconciliationData.isBalanced ? (
+                      <CheckCircle className="h-5 w-5 text-green-600" />
+                    ) : (
+                      <AlertTriangle className="h-5 w-5 text-red-600" />
+                    )}
+                    <h3
+                      className={`font-medium ${
+                        reconciliationData.isBalanced
+                          ? "text-green-900 dark:text-green-100"
+                          : "text-red-900 dark:text-red-100"
+                      }`}
+                    >
+                      {reconciliationData.isBalanced ? "Balanced" : "Discrepancy Detected"}
+                    </h3>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-4 text-sm">
+                    <div>
+                      <span className="text-muted-foreground">System:</span>
+                      <p className="font-semibold">${reconciliationData.systemBalance.toFixed(2)}</p>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Physical:</span>
+                      <p className="font-semibold">${reconciliationData.physicalBalance.toFixed(2)}</p>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Difference:</span>
+                      <p
+                        className={`font-semibold ${
+                          reconciliationData.difference === 0
+                            ? "text-green-600"
+                            : reconciliationData.difference > 0
+                              ? "text-green-600"
                               : "text-red-600"
-                            : "text-green-600"
                         }`}
                       >
-                        {difference > 0 ? "+" : ""}${difference.toFixed(2)}
-                      </span>
+                        {reconciliationData.difference >= 0 ? "+" : ""}${reconciliationData.difference.toFixed(2)}
+                      </p>
                     </div>
-                  </motion.div>
-                )}
+                  </div>
 
-                {/* Explanation Field */}
-                {actualCash && isDifferenceSignificant && (
-                  <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-2">
-                    <Label htmlFor="explanation">Explanation for Discrepancy {isDifferenceSignificant && "*"}</Label>
-                    <Textarea
-                      id="explanation"
-                      value={explanation}
-                      onChange={(e) => setExplanation(e.target.value)}
-                      placeholder="Please explain the reason for this discrepancy..."
-                      disabled={hasReconciled}
-                    />
-                  </motion.div>
-                )}
-
-                {/* Action Buttons */}
-                <div className="flex space-x-4">
-                  {!hasReconciled ? (
-                    <Button onClick={handleReconcile} disabled={!actualCash || isNaN(actualAmount)} className="flex-1">
-                      <Save className="h-4 w-4 mr-2" />
-                      Complete Reconciliation
-                    </Button>
-                  ) : (
-                    <Button onClick={resetForm} variant="outline" className="flex-1 bg-transparent">
-                      New Reconciliation
-                    </Button>
+                  {!reconciliationData.isBalanced && (
+                    <p className="text-sm text-red-700 dark:text-red-300 mt-3">
+                      {reconciliationData.difference > 0
+                        ? "Physical cash exceeds system balance. Check for unrecorded replenishments."
+                        : "Physical cash is less than system balance. Check for unrecorded disbursements or missing cash."}
+                    </p>
                   )}
-                </div>
+                </motion.div>
+              )}
 
-                {/* Success Message */}
-                {hasReconciled && (
-                  <Alert className="border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950">
-                    <CheckCircle className="h-4 w-4 text-green-600" />
-                    <AlertDescription className="text-green-800 dark:text-green-200">
-                      Reconciliation completed and saved to history.
-                    </AlertDescription>
-                  </Alert>
-                )}
-              </CardContent>
-            </Card>
-          </motion.div>
+              <Button
+                onClick={handleReconcile}
+                disabled={!reconciliationData.hasPhysicalInput || isReconciling}
+                className="w-full"
+              >
+                {isReconciling ? "Recording Reconciliation..." : "Complete Reconciliation"}
+              </Button>
+            </CardContent>
+          </Card>
+        </motion.div>
 
-          {/* Reconciliation History */}
+        {/* Reconciliation History */}
+        {reconciliationHistory.length > 0 && (
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
             <Card>
               <CardHeader>
-                <CardTitle>Reconciliation History</CardTitle>
+                <CardTitle className="flex items-center space-x-2">
+                  <FileText className="h-5 w-5" />
+                  <span>Reconciliation History</span>
+                </CardTitle>
               </CardHeader>
               <CardContent>
-                {reconciliationHistory.length === 0 ? (
-                  <div className="text-center py-8">
-                    <p className="text-muted-foreground">No reconciliation records yet</p>
-                  </div>
-                ) : (
-                  <div className="space-y-4 max-h-96 overflow-y-auto">
-                    {reconciliationHistory.map((record, index) => (
-                      <motion.div
-                        key={record.id}
-                        initial={{ opacity: 0, x: -20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: index * 0.1 }}
-                        className="border rounded-lg p-4 space-y-3"
-                      >
-                        <div className="flex items-center justify-between">
-                          <div className="text-sm text-muted-foreground">
-                            {new Date(record.date).toLocaleDateString()}
-                          </div>
-                          <Badge
-                            variant={
-                              Math.abs(record.difference) < 0.01
-                                ? "default"
-                                : record.difference > 0
-                                  ? "secondary"
-                                  : "destructive"
-                            }
-                          >
-                            {Math.abs(record.difference) < 0.01
-                              ? "Balanced"
-                              : record.difference > 0
-                                ? "Overage"
-                                : "Shortage"}
-                          </Badge>
+                <div className="space-y-4 max-h-96 overflow-y-auto">
+                  {reconciliationHistory.slice(0, 10).map((record, index) => (
+                    <motion.div
+                      key={record.id}
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: index * 0.05 }}
+                      className="flex items-center justify-between p-3 border rounded-lg"
+                    >
+                      <div className="flex items-center space-x-4">
+                        <div className="flex items-center space-x-2">
+                          <Calendar className="h-4 w-4 text-muted-foreground" />
+                          <span className="text-sm font-medium">{new Date(record.date).toLocaleDateString()}</span>
                         </div>
-
-                        <div className="grid grid-cols-2 gap-4 text-sm">
-                          <div>
-                            <span className="text-muted-foreground">Theoretical:</span>
-                            <div className="font-medium">${record.theoreticalBalance.toFixed(2)}</div>
-                          </div>
-                          <div>
-                            <span className="text-muted-foreground">Actual:</span>
-                            <div className="font-medium">${record.actualCash.toFixed(2)}</div>
-                          </div>
-                        </div>
-
+                        <Badge
+                          variant={Math.abs(record.difference) < 0.01 ? "default" : "destructive"}
+                          className="text-xs"
+                        >
+                          {Math.abs(record.difference) < 0.01 ? "Balanced" : "Discrepancy"}
+                        </Badge>
+                      </div>
+                      <div className="text-right">
                         <div className="text-sm">
-                          <span className="text-muted-foreground">Difference:</span>
-                          <span
-                            className={`ml-2 font-medium ${
-                              Math.abs(record.difference) < 0.01
-                                ? "text-green-600"
-                                : record.difference > 0
-                                  ? "text-yellow-600"
-                                  : "text-red-600"
-                            }`}
-                          >
-                            {record.difference > 0 ? "+" : ""}${record.difference.toFixed(2)}
-                          </span>
+                          System: ${record.systemBalance.toFixed(2)} | Physical: ${record.physicalBalance.toFixed(2)}
                         </div>
-
-                        {record.explanation && (
-                          <div className="text-sm">
-                            <span className="text-muted-foreground">Explanation:</span>
-                            <div className="mt-1 text-sm bg-muted p-2 rounded">{record.explanation}</div>
-                          </div>
-                        )}
-                      </motion.div>
-                    ))}
-                  </div>
-                )}
+                        <div
+                          className={`text-sm font-medium ${
+                            Math.abs(record.difference) < 0.01
+                              ? "text-green-600"
+                              : record.difference > 0
+                                ? "text-green-600"
+                                : "text-red-600"
+                          }`}
+                        >
+                          Difference: {record.difference >= 0 ? "+" : ""}${record.difference.toFixed(2)}
+                        </div>
+                      </div>
+                    </motion.div>
+                  ))}
+                </div>
               </CardContent>
             </Card>
           </motion.div>
-        </div>
+        )}
       </div>
     </AppLayout>
   )

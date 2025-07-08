@@ -1,15 +1,9 @@
 "use client"
+
 import { AlertTriangle, CheckCircle, Info, XCircle } from "lucide-react"
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
+import { Button } from "@/components/ui/button"
+import { Modal, ModalContent, ModalHeader, ModalTitle, ModalDescription, ModalFooter } from "@/components/ui/modal"
+import { LoadingSpinner } from "./LoadingSpinner"
 
 interface ConfirmDialogProps {
   isOpen: boolean
@@ -19,7 +13,7 @@ interface ConfirmDialogProps {
   description: string
   confirmText?: string
   cancelText?: string
-  variant?: "default" | "destructive" | "warning" | "success"
+  variant?: "default" | "destructive" | "success" | "warning"
   isLoading?: boolean
 }
 
@@ -60,31 +54,51 @@ export function ConfirmDialog({
   const config = variantConfig[variant]
   const Icon = config.icon
 
+  const getConfirmButtonVariant = () => {
+    switch (variant) {
+      case "destructive":
+        return "destructive"
+      case "success":
+        return "default"
+      default:
+        return "default"
+    }
+  }
+
   return (
-    <AlertDialog open={isOpen} onOpenChange={onClose}>
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <div className="flex items-center space-x-3">
+    <Modal open={isOpen} onOpenChange={onClose}>
+      <ModalContent className="sm:max-w-md">
+        <ModalHeader className="text-center">
+          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full">
             <div className={`w-10 h-10 rounded-full flex items-center justify-center ${config.bgColor}`}>
               <Icon className={`h-5 w-5 ${config.iconColor}`} />
             </div>
-            <div>
-              <AlertDialogTitle>{title}</AlertDialogTitle>
-            </div>
           </div>
-          <AlertDialogDescription className="mt-4">{description}</AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel disabled={isLoading}>{cancelText}</AlertDialogCancel>
-          <AlertDialogAction
+          <ModalTitle className="text-lg font-semibold">{title}</ModalTitle>
+          <ModalDescription className="text-sm text-muted-foreground mt-2">{description}</ModalDescription>
+        </ModalHeader>
+
+        <ModalFooter className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 mt-6">
+          <Button variant="outline" onClick={onClose} disabled={isLoading}>
+            {cancelText}
+          </Button>
+          <Button
+            variant={getConfirmButtonVariant()}
             onClick={onConfirm}
             disabled={isLoading}
-            className={variant === "destructive" ? "bg-red-600 hover:bg-red-700" : ""}
+            className="min-w-[100px]"
           >
-            {isLoading ? "Processing..." : confirmText}
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
+            {isLoading ? (
+              <div className="flex items-center space-x-2">
+                <LoadingSpinner size="sm" />
+                <span>Processing...</span>
+              </div>
+            ) : (
+              confirmText
+            )}
+          </Button>
+        </ModalFooter>
+      </ModalContent>
+    </Modal>
   )
 }
