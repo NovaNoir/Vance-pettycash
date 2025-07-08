@@ -3,120 +3,103 @@
 import type React from "react"
 
 import { useState } from "react"
-import { useRouter } from "next/navigation"
 import { motion } from "framer-motion"
+import { useRouter } from "next/navigation"
+import { Plus, DollarSign, Calendar, Building, FileText, ArrowLeft, TrendingUp } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { AppLayout } from "@/components/layout/AppLayout"
-import { Modal } from "@/components/ui/modal"
 import { usePettyCash } from "@/contexts/PettyCashContext"
 import { useToast } from "@/hooks/use-toast"
-import { Plus, AlertTriangle } from "lucide-react"
+import Link from "next/link"
 
-// Predefined replenishment sources
 const REPLENISHMENT_SOURCES = [
-  "Bank Transfer",
-  "Cash from Main Account",
-  "Cheque",
-  "Credit Card",
-  "Petty Cash Voucher",
+  "Petty Cash Account",
+  "Operating Account",
+  "Main Bank Account",
+  "Cash Advance",
+  "Expense Reimbursement",
   "Other",
 ]
 
 export default function ReplenishPage() {
-  const [amount, setAmount] = useState("")
-  const [date, setDate] = useState(new Date().toISOString().split("T")[0])
-  const [source, setSource] = useState("")
-  const [showModal, setShowModal] = useState(false)
-  const [errors, setErrors] = useState<{
-    amount?: string
-    date?: string
-    source?: string
-  }>({})
-
   const { state, dispatch } = usePettyCash()
-  const router = useRouter()
   const { toast } = useToast()
+  const router = useRouter()
 
-  const validateForm = () => {
-    const newErrors: typeof errors = {}
-    const amountValue = Number.parseFloat(amount)
+  const [amount, setAmount] = useState("")
+  const [source, setSource] = useState("")
+  const [date, setDate] = useState(new Date().toISOString().split("T")[0])
+  const [notes, setNotes] = useState("")
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
-    // Amount validation
-    if (!amount || isNaN(amountValue) || amountValue <= 0) {
-      newErrors.amount = "Please enter a valid amount greater than 0"
-    } else if (amountValue > 10000) {
-      newErrors.amount = "Amount cannot exceed $10,000 for security reasons"
-    }
-
-    // Date validation
-    if (!date) {
-      newErrors.date = "Date is required"
-    } else {
-      const selectedDate = new Date(date)
-      const today = new Date()
-      today.setHours(23, 59, 59, 999) // End of today
-
-      if (selectedDate > today) {
-        newErrors.date = "Date cannot be in the future"
-      }
-    }
-
-    // Source validation
-    if (!source) {
-      newErrors.source = "Please select a replenishment source"
-    }
-
-    setErrors(newErrors)
-    return Object.keys(newErrors).length === 0
+  // Validation
+  const errors = {
+    amount: !amount || Number.parseFloat(amount) <= 0 ? "Amount must be greater than 0" : "",
+    source: !source ? "Source is required" : "",
+    date: !date ? "Date is required" : "",
+    futureDate: new Date(date) > new Date() ? "Date cannot be in the future" : "",
   }
 
-  const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value
-    setAmount(value)
+  const hasErrors = Object.values(errors).some((error) => error !== "")
+  const amountValue = Number.parseFloat(amount) || 0
 
-    // Real-time validation for amount
-    if (value && !isNaN(Number.parseFloat(value))) {
-      const amountValue = Number.parseFloat(value)
-      if (amountValue > 10000) {
-        setErrors((prev) => ({
-          ...prev,
-          amount: "Amount cannot exceed $10,000 for security reasons",
-        }))
-      } else {
-        setErrors((prev) => ({ ...prev, amount: undefined }))
-      }
-    }
-  }
-
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    if (!validateForm()) return
+    if (hasErrors) {
+      toast({
+        title: "Validation Error",
+        description: "Please fix the errors before submitting",
+        variant: "destructive",
+      })
+      return
+    }
 
-    setShowModal(true)
-  }
+    setIsSubmitting(true)
 
-  const confirmReplenishment = () => {
-    dispatch({
-      type: "REPLENISH",
-      payload: {
-        amount: Number.parseFloat(amount),
-        date,
-        source,
-      },
-    })
+    try {
+      // Simulate processing delay
+      await new Promise((resolve) => setTimeout(resolve, 500))
 
-    setShowModal(false)
-    toast({
-      title: "Fund Replenished",
-      description: `$${Number.parseFloat(amount).toFixed(2)} added from ${source}`,
-    })
-    router.push("/")
+      dispatch({
+        type: "REPLENISH",
+        payload: {
+          amount: amountValue,
+          date,
+          source,
+        },
+      })
+
+      toast({
+        title: "Fund Replenished",
+        description: `$${amountValue.toFixed(2)} added from ${source}`,
+      })
+
+      // Reset form
+      setAmount("")
+      setSource("")
+      setNotes("")
+      setDate(new Date().toISOString().split("T")[0])
+
+      // Navigate to dashboard after short delay
+      setTimeout(() => {
+        router.push("/")
+      }, 1000)
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to record replenishment. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   if (!state.isInitialized) {
@@ -129,7 +112,9 @@ export default function ReplenishPage() {
             </CardHeader>
             <CardContent className="text-center space-y-4">
               <p className="text-muted-foreground">Please initialize your petty cash fund first.</p>
-              <Button onClick={() => router.push("/initialize")}>Initialize Fund</Button>
+              <Link href="/initialize">
+                <Button>Initialize Fund</Button>
+              </Link>
             </CardContent>
           </Card>
         </div>
@@ -137,134 +122,170 @@ export default function ReplenishPage() {
     )
   }
 
-  const newBalance = state.balance + (Number.parseFloat(amount) || 0)
-  const isLargeReplenishment = Number.parseFloat(amount) > 1000
-
   return (
     <AppLayout>
       <div className="max-w-2xl mx-auto space-y-8">
-        <div>
-          <h1 className="text-3xl font-bold">Replenish Fund</h1>
-          <p className="text-muted-foreground">
-            Current balance: <span className="font-medium">${state.balance.toFixed(2)}</span>
-          </p>
+        {/* Header */}
+        <div className="flex items-center space-x-4">
+          <Link href="/">
+            <Button variant="ghost" size="icon">
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+          </Link>
+          <div>
+            <h1 className="text-3xl font-bold flex items-center space-x-2">
+              <Plus className="h-8 w-8 text-green-600" />
+              <span>Replenish Fund</span>
+            </h1>
+            <p className="text-muted-foreground">Add money to your petty cash fund</p>
+          </div>
         </div>
 
-        {/* Large Replenishment Warning */}
-        {isLargeReplenishment && (
-          <Alert className="border-yellow-200 bg-yellow-50 dark:border-yellow-800 dark:bg-yellow-950">
-            <AlertTriangle className="h-4 w-4 text-yellow-600" />
-            <AlertDescription className="text-yellow-800 dark:text-yellow-200">
-              <strong>Large Replenishment:</strong> This is a significant amount. Please ensure proper authorization and
-              documentation are in place.
+        {/* Current Balance Info */}
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
+          <Alert className="border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950">
+            <TrendingUp className="h-4 w-4 text-green-600" />
+            <AlertDescription className="text-green-800 dark:text-green-200">
+              <strong>Current Balance:</strong> ${state.balance.toFixed(2)} • Adding funds will increase your available
+              balance
             </AlertDescription>
           </Alert>
-        )}
+        </motion.div>
 
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
+        {/* Form */}
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center space-x-2">
-                <Plus className="h-5 w-5" />
+                <DollarSign className="h-5 w-5" />
                 <span>Replenishment Details</span>
               </CardTitle>
             </CardHeader>
             <CardContent>
               <form onSubmit={handleSubmit} className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Amount */}
                   <div className="space-y-2">
-                    <Label htmlFor="amount">Amount ($) *</Label>
+                    <Label htmlFor="amount" className="flex items-center space-x-2">
+                      <DollarSign className="h-4 w-4" />
+                      <span>Amount *</span>
+                    </Label>
                     <Input
                       id="amount"
                       type="number"
                       step="0.01"
-                      min="0"
-                      max="10000"
+                      min="0.01"
                       value={amount}
-                      onChange={handleAmountChange}
+                      onChange={(e) => setAmount(e.target.value)}
                       placeholder="0.00"
                       className={errors.amount ? "border-red-500" : ""}
                     />
-                    {errors.amount && <p className="text-sm text-red-500">{errors.amount}</p>}
-                    {amount && !errors.amount && (
-                      <p className="text-sm text-muted-foreground">New balance: ${newBalance.toFixed(2)}</p>
-                    )}
+                    {errors.amount && <p className="text-sm text-red-600">{errors.amount}</p>}
                   </div>
 
+                  {/* Date */}
                   <div className="space-y-2">
-                    <Label htmlFor="date">Date *</Label>
+                    <Label htmlFor="date" className="flex items-center space-x-2">
+                      <Calendar className="h-4 w-4" />
+                      <span>Date *</span>
+                    </Label>
                     <Input
                       id="date"
                       type="date"
                       value={date}
                       onChange={(e) => setDate(e.target.value)}
                       max={new Date().toISOString().split("T")[0]}
-                      className={errors.date ? "border-red-500" : ""}
+                      className={errors.date || errors.futureDate ? "border-red-500" : ""}
                     />
-                    {errors.date && <p className="text-sm text-red-500">{errors.date}</p>}
+                    {(errors.date || errors.futureDate) && (
+                      <p className="text-sm text-red-600">{errors.date || errors.futureDate}</p>
+                    )}
+                  </div>
+
+                  {/* Source */}
+                  <div className="md:col-span-2 space-y-2">
+                    <Label htmlFor="source" className="flex items-center space-x-2">
+                      <Building className="h-4 w-4" />
+                      <span>Funding Source *</span>
+                    </Label>
+                    <Select value={source} onValueChange={setSource}>
+                      <SelectTrigger className={errors.source ? "border-red-500" : ""}>
+                        <SelectValue placeholder="Select funding source" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {REPLENISHMENT_SOURCES.map((src) => (
+                          <SelectItem key={src} value={src}>
+                            {src}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {errors.source && <p className="text-sm text-red-600">{errors.source}</p>}
                   </div>
                 </div>
 
+                {/* Additional Notes */}
                 <div className="space-y-2">
-                  <Label htmlFor="source">Replenishment Source *</Label>
-                  <Select value={source} onValueChange={setSource}>
-                    <SelectTrigger className={errors.source ? "border-red-500" : ""}>
-                      <SelectValue placeholder="Select replenishment source" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {REPLENISHMENT_SOURCES.map((src) => (
-                        <SelectItem key={src} value={src}>
-                          {src}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {errors.source && <p className="text-sm text-red-500">{errors.source}</p>}
+                  <Label htmlFor="notes" className="flex items-center space-x-2">
+                    <FileText className="h-4 w-4" />
+                    <span>Notes (Optional)</span>
+                  </Label>
+                  <Textarea
+                    id="notes"
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    placeholder="Any additional details about this replenishment..."
+                    rows={3}
+                  />
                 </div>
 
-                <Button type="submit" className="w-full" disabled={Object.keys(errors).length > 0}>
-                  Replenish Fund
-                </Button>
+                {/* Summary */}
+                {amount && source && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="bg-green-50 dark:bg-green-950/20 rounded-lg p-4 border border-green-200 dark:border-green-800"
+                  >
+                    <h3 className="font-medium mb-2 text-green-900 dark:text-green-100">Replenishment Summary</h3>
+                    <div className="text-sm space-y-1 text-green-800 dark:text-green-200">
+                      <p>
+                        <strong>Amount:</strong> ${amountValue.toFixed(2)}
+                      </p>
+                      <p>
+                        <strong>Source:</strong> {source}
+                      </p>
+                      <p>
+                        <strong>Date:</strong> {new Date(date).toLocaleDateString()}
+                      </p>
+                      <p>
+                        <strong>Current Balance:</strong> ${state.balance.toFixed(2)}
+                      </p>
+                      <p>
+                        <strong>New Balance:</strong> ${(state.balance + amountValue).toFixed(2)}
+                      </p>
+                    </div>
+                  </motion.div>
+                )}
+
+                {/* Actions */}
+                <div className="flex space-x-4 pt-4">
+                  <Link href="/" className="flex-1">
+                    <Button type="button" variant="outline" className="w-full bg-transparent">
+                      Cancel
+                    </Button>
+                  </Link>
+                  <Button
+                    type="submit"
+                    disabled={hasErrors || isSubmitting}
+                    className="flex-1 bg-green-600 hover:bg-green-700"
+                  >
+                    {isSubmitting ? "Processing..." : "Replenish Fund"}
+                  </Button>
+                </div>
               </form>
             </CardContent>
           </Card>
         </motion.div>
-
-        <Modal isOpen={showModal} onClose={() => setShowModal(false)} title="Confirm Replenishment">
-          <div className="space-y-4">
-            <p>Please review and confirm this replenishment:</p>
-            <div className="bg-muted p-4 rounded-lg space-y-2">
-              <div className="flex justify-between">
-                <span>Amount:</span>
-                <span className="font-medium">${Number.parseFloat(amount || "0").toFixed(2)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Date:</span>
-                <span className="font-medium">{new Date(date).toLocaleDateString()}</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Source:</span>
-                <span className="font-medium">{source}</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Current Balance:</span>
-                <span className="font-medium">${state.balance.toFixed(2)}</span>
-              </div>
-              <div className="flex justify-between border-t pt-2 font-medium">
-                <span>New Balance:</span>
-                <span className="text-green-600">${newBalance.toFixed(2)}</span>
-              </div>
-            </div>
-            <div className="flex space-x-4">
-              <Button variant="outline" onClick={() => setShowModal(false)} className="flex-1">
-                Cancel
-              </Button>
-              <Button onClick={confirmReplenishment} className="flex-1">
-                Confirm Replenishment
-              </Button>
-            </div>
-          </div>
-        </Modal>
       </div>
     </AppLayout>
   )
