@@ -1,89 +1,131 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import { motion } from "framer-motion"
-import { Search, Filter, Calendar, DollarSign, Download, Eye } from "lucide-react"
+import { useSearchParams } from "next/navigation"
+import { Search, Filter, Download, Eye, Calendar, User, FileText, X, ChevronLeft, ChevronRight } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Badge } from "@/components/ui/badge"
+import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Badge } from "@/components/ui/badge"
 import { AppLayout } from "@/components/layout/AppLayout"
+import { Modal } from "@/components/ui/modal"
 import { usePettyCash } from "@/contexts/PettyCashContext"
+import { useToast } from "@/hooks/use-toast"
 import type { Transaction } from "@/contexts/PettyCashContext"
+
+const ITEMS_PER_PAGE = 10
 
 export default function HistoryPage() {
   const { state } = usePettyCash()
+  const { toast } = useToast()
+  const searchParams = useSearchParams()
+
   const [searchTerm, setSearchTerm] = useState("")
-  const [filterType, setFilterType] = useState<string>("all")
-  const [sortBy, setSortBy] = useState<"date" | "amount">("date")
-  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc")
-  const [dateFrom, setDateFrom] = useState("")
-  const [dateTo, setDateTo] = useState("")
+  const [typeFilter, setTypeFilter] = useState("all")
+  const [startDate, setStartDate] = useState("")
+  const [endDate, setEndDate] = useState("")
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null)
+  const [currentPage, setCurrentPage] = useState(1)
 
-  const filteredAndSortedTransactions = useMemo(() => {
-    let filtered = state.transactions
+  // Handle URL parameters for filtering
+  useEffect(() => {
+    const filterParam = searchParams.get("filter")
+    const transactionParam = searchParams.get("transaction")
 
-    // Filter by type
-    if (filterType !== "all") {
-      filtered = filtered.filter((t) => t.type === filterType)
+    if (filterParam && ["disbursement", "replenishment", "initialization"].includes(filterParam)) {
+      setTypeFilter(filterParam)
     }
 
-    // Filter by date range
-    if (dateFrom) {
-      filtered = filtered.filter((t) => new Date(t.date) >= new Date(dateFrom))
+    if (transactionParam) {
+      const transaction = state.transactions.find((t) => t.id === transactionParam)
+      if (transaction) {
+        setSelectedTransaction(transaction)
+      }
     }
-    if (dateTo) {
-      filtered = filtered.filter((t) => new Date(t.date) <= new Date(dateTo))
-    }
+  }, [searchParams, state.transactions])
 
-    // Filter by search term
+  // Filter and search transactions
+  const filteredTransactions = useMemo(() => {
+    let filtered = [...state.transactions]
+
+    // Apply search filter
     if (searchTerm) {
       filtered = filtered.filter(
         (t) =>
           t.purpose?.toLowerCase().includes(searchTerm.toLowerCase()) ||
           t.recipient?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          t.amount.toString().includes(searchTerm) ||
           t.id.toLowerCase().includes(searchTerm.toLowerCase()),
       )
     }
 
-    // Sort
-    filtered.sort((a, b) => {
-      let comparison = 0
+    // Apply type filter
+    if (typeFilter !== "all") {
+      filtered = filtered.filter((t) => t.type === typeFilter)
+    }
 
-      if (sortBy === "date") {
-        comparison = new Date(a.date).getTime() - new Date(b.date).getTime()
-      } else {
-        comparison = a.amount - b.amount
-      }
+    // Apply date range filter
+    if (startDate) {
+      filtered = filtered.filter((t) => new Date(t.date) >= new Date(startDate))
+    }
+    if (endDate) {
+      filtered = filtered.filter((t) => new Date(t.date) <= new Date(endDate))
+    }
 
-      return sortOrder === "asc" ? comparison : -comparison
-    })
+    // Sort by date (newest first)
+    return filtered.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+  }, [state.transactions, searchTerm, typeFilter, startDate, endDate])
 
-    return filtered
-  }, [state.transactions, searchTerm, filterType, sortBy, sortOrder, dateFrom, dateTo])
+  // Pagination
+  const totalPages = Math.ceil(filteredTransactions.length / ITEMS_PER_PAGE)
+  const paginatedTransactions = filteredTransactions.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE,
+  )
 
+  // Clear all filters
+  const clearFilters = () => {
+    setSearchTerm("")
+    setTypeFilter("all")
+    setStartDate("")
+    setEndDate("")
+    setCurrentPage(1)
+  }
+
+  // Export to CSV
   const exportToCSV = () => {
     const headers = ["Date", "Type", "Amount", "Purpose", "Recipient", "Transaction ID"]
-    const csvContent = [
-      headers.join(","),
-      ...filteredAndSortedTransactions.map((t) =>
-        [t.date, t.type, t.amount.toFixed(2), `"${t.purpose || ""}"`, `"${t.recipient || ""}"`, t.id].join(","),
-      ),
-    ].join("\n")
+    const csvData = filteredTransactions.map((t) => [
+      new Date(t.date).toLocaleDateString(),
+      t.type,
+      t.amount.toFixed(2),
+      t.purpose || "",
+      t.recipient || "",
+      t.id,
+    ])
+
+    const csvContent = [headers, ...csvData].map((row) => row.map((field) => `"${field}"`).join(",")).join("\n")
 
     const blob = new Blob([csvContent], { type: "text/csv" })
     const url = URL.createObjectURL(blob)
-    const a = document.createElement("a")
-    a.href = url
-    a.download = `petty-cash-history-${new Date().toISOString().split("T")[0]}.csv`
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
+    const link = document.createElement("a")
+    link.href = url
+    link.download = `petty-cash-history-${new Date().toISOString().split("T")[0]}.csv`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
     URL.revokeObjectURL(url)
+
+    toast({
+      title: "Export Complete",
+      description: "Transaction history has been exported to CSV.",
+    })
   }
+
+  const hasActiveFilters = searchTerm || typeFilter !== "all" || startDate || endDate
 
   if (!state.isInitialized) {
     return (
@@ -106,240 +148,259 @@ export default function HistoryPage() {
   return (
     <AppLayout>
       <div className="space-y-8">
+        {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between space-y-4 sm:space-y-0">
           <div>
             <h1 className="text-3xl font-bold">Transaction History</h1>
-            <p className="text-muted-foreground">View and filter all your petty cash transactions</p>
+            <p className="text-muted-foreground">
+              {filteredTransactions.length} of {state.transactions.length} transactions
+            </p>
           </div>
-          <Button onClick={exportToCSV} variant="outline" disabled={filteredAndSortedTransactions.length === 0}>
+          <Button onClick={exportToCSV} disabled={filteredTransactions.length === 0}>
             <Download className="h-4 w-4 mr-2" />
             Export CSV
           </Button>
         </div>
 
-        {/* Enhanced Filters */}
+        {/* Filters */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center space-x-2">
               <Filter className="h-5 w-5" />
-              <span>Filters & Search</span>
+              <span>Filters</span>
+              {hasActiveFilters && (
+                <Button variant="ghost" size="sm" onClick={clearFilters} className="ml-auto">
+                  <X className="h-4 w-4 mr-1" />
+                  Clear
+                </Button>
+              )}
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search transactions..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
-                />
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              {/* Search */}
+              <div className="space-y-2">
+                <Label htmlFor="search">Search</Label>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    id="search"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    placeholder="Search transactions..."
+                    className="pl-10"
+                  />
+                </div>
               </div>
 
-              <Select value={filterType} onValueChange={setFilterType}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Filter by type" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Types</SelectItem>
-                  <SelectItem value="initialization">Initialization</SelectItem>
-                  <SelectItem value="disbursement">Disbursement</SelectItem>
-                  <SelectItem value="replenishment">Replenishment</SelectItem>
-                </SelectContent>
-              </Select>
-
-              <div>
-                <Input
-                  type="date"
-                  placeholder="From date"
-                  value={dateFrom}
-                  onChange={(e) => setDateFrom(e.target.value)}
-                />
+              {/* Type Filter */}
+              <div className="space-y-2">
+                <Label>Transaction Type</Label>
+                <Select value={typeFilter} onValueChange={setTypeFilter}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Types</SelectItem>
+                    <SelectItem value="disbursement">Disbursements</SelectItem>
+                    <SelectItem value="replenishment">Replenishments</SelectItem>
+                    <SelectItem value="initialization">Initialization</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
 
-              <div>
-                <Input
-                  type="date"
-                  placeholder="To date"
-                  value={dateTo}
-                  onChange={(e) => setDateTo(e.target.value)}
-                  min={dateFrom}
-                />
+              {/* Date Range */}
+              <div className="space-y-2">
+                <Label htmlFor="startDate">From Date</Label>
+                <Input id="startDate" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
               </div>
 
-              <Select value={sortBy} onValueChange={(value: "date" | "amount") => setSortBy(value)}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Sort by" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="date">Date</SelectItem>
-                  <SelectItem value="amount">Amount</SelectItem>
-                </SelectContent>
-              </Select>
-
-              <Select value={sortOrder} onValueChange={(value: "asc" | "desc") => setSortOrder(value)}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Order" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="desc">Descending</SelectItem>
-                  <SelectItem value="asc">Ascending</SelectItem>
-                </SelectContent>
-              </Select>
+              <div className="space-y-2">
+                <Label htmlFor="endDate">To Date</Label>
+                <Input id="endDate" type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+              </div>
             </div>
-
-            {/* Clear Filters Button */}
-            {(searchTerm || filterType !== "all" || dateFrom || dateTo) && (
-              <div className="mt-4">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    setSearchTerm("")
-                    setFilterType("all")
-                    setDateFrom("")
-                    setDateTo("")
-                  }}
-                >
-                  Clear Filters
-                </Button>
-              </div>
-            )}
           </CardContent>
         </Card>
 
-        {/* Transactions */}
+        {/* Transactions List */}
         <Card>
           <CardHeader>
-            <CardTitle>Transactions ({filteredAndSortedTransactions.length})</CardTitle>
+            <CardTitle>Transactions</CardTitle>
           </CardHeader>
           <CardContent>
-            {filteredAndSortedTransactions.length === 0 ? (
+            {paginatedTransactions.length === 0 ? (
               <div className="text-center py-12">
-                <p className="text-muted-foreground">No transactions found</p>
+                <p className="text-muted-foreground">
+                  {hasActiveFilters ? "No transactions match your filters" : "No transactions found"}
+                </p>
+                {hasActiveFilters && (
+                  <Button variant="outline" onClick={clearFilters} className="mt-4 bg-transparent">
+                    Clear Filters
+                  </Button>
+                )}
               </div>
             ) : (
               <div className="space-y-4">
-                {filteredAndSortedTransactions.map((transaction, index) => (
+                {paginatedTransactions.map((transaction, index) => (
                   <motion.div
                     key={transaction.id}
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: index * 0.05 }}
-                    className="border rounded-lg p-4 hover:bg-muted/50 transition-colors"
+                    className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors"
                   >
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between space-y-2 sm:space-y-0">
-                      <div className="flex items-center space-x-4">
+                    <div className="flex items-center space-x-4 flex-1">
+                      <div className="flex flex-col space-y-1">
                         <div className="flex items-center space-x-2">
                           <Calendar className="h-4 w-4 text-muted-foreground" />
-                          <span className="text-sm text-muted-foreground">
-                            {new Date(transaction.date).toLocaleDateString()}
-                          </span>
+                          <span className="text-sm font-medium">{new Date(transaction.date).toLocaleDateString()}</span>
                         </div>
-                        <Badge
-                          variant={
-                            transaction.type === "disbursement"
-                              ? "destructive"
-                              : transaction.type === "replenishment"
-                                ? "default"
-                                : "secondary"
-                          }
-                        >
-                          {transaction.type}
-                        </Badge>
+                        <div className="text-xs text-muted-foreground">ID: {transaction.id}</div>
                       </div>
 
-                      <div className="flex items-center space-x-4">
-                        <div className="text-right">
-                          <div
-                            className={`font-medium flex items-center space-x-1 ${
-                              transaction.type === "disbursement" ? "text-red-600" : "text-green-600"
-                            }`}
-                          >
-                            <DollarSign className="h-4 w-4" />
-                            <span>
-                              {transaction.type === "disbursement" ? "-" : "+"}
-                              {transaction.amount.toFixed(2)}
-                            </span>
+                      <Badge
+                        variant={
+                          transaction.type === "disbursement"
+                            ? "destructive"
+                            : transaction.type === "replenishment"
+                              ? "default"
+                              : "secondary"
+                        }
+                      >
+                        {transaction.type}
+                      </Badge>
+
+                      <div className="flex-1 min-w-0">
+                        {transaction.purpose && (
+                          <div className="flex items-center space-x-1 mb-1">
+                            <FileText className="h-4 w-4 text-muted-foreground" />
+                            <span className="text-sm font-medium truncate">{transaction.purpose}</span>
                           </div>
-                        </div>
-                        <Dialog>
-                          <DialogTrigger asChild>
-                            <Button variant="outline" size="sm" onClick={() => setSelectedTransaction(transaction)}>
-                              <Eye className="h-4 w-4" />
-                            </Button>
-                          </DialogTrigger>
-                          <DialogContent>
-                            <DialogHeader>
-                              <DialogTitle>Transaction Details</DialogTitle>
-                            </DialogHeader>
-                            <div className="space-y-4">
-                              <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                  <span className="text-sm text-muted-foreground">Transaction ID</span>
-                                  <div className="font-mono text-sm">{transaction.id}</div>
-                                </div>
-                                <div>
-                                  <span className="text-sm text-muted-foreground">Type</span>
-                                  <div className="capitalize">{transaction.type}</div>
-                                </div>
-                                <div>
-                                  <span className="text-sm text-muted-foreground">Date</span>
-                                  <div>{new Date(transaction.date).toLocaleDateString()}</div>
-                                </div>
-                                <div>
-                                  <span className="text-sm text-muted-foreground">Amount</span>
-                                  <div
-                                    className={`font-medium ${
-                                      transaction.type === "disbursement" ? "text-red-600" : "text-green-600"
-                                    }`}
-                                  >
-                                    {transaction.type === "disbursement" ? "-" : "+"}${transaction.amount.toFixed(2)}
-                                  </div>
-                                </div>
-                              </div>
-                              {transaction.recipient && (
-                                <div>
-                                  <span className="text-sm text-muted-foreground">Recipient</span>
-                                  <div>{transaction.recipient}</div>
-                                </div>
-                              )}
-                              {transaction.purpose && (
-                                <div>
-                                  <span className="text-sm text-muted-foreground">Purpose</span>
-                                  <div>{transaction.purpose}</div>
-                                </div>
-                              )}
-                              <div>
-                                <span className="text-sm text-muted-foreground">Timestamp</span>
-                                <div className="text-sm">{new Date(transaction.timestamp).toLocaleString()}</div>
-                              </div>
-                            </div>
-                          </DialogContent>
-                        </Dialog>
+                        )}
+                        {transaction.recipient && (
+                          <div className="flex items-center space-x-1">
+                            <User className="h-4 w-4 text-muted-foreground" />
+                            <span className="text-sm text-muted-foreground truncate">{transaction.recipient}</span>
+                          </div>
+                        )}
                       </div>
                     </div>
 
-                    <div className="mt-3 space-y-1">
-                      <div className="text-sm text-muted-foreground">ID: {transaction.id}</div>
-                      {transaction.recipient && (
-                        <div className="text-sm">
-                          <span className="text-muted-foreground">Recipient:</span> {transaction.recipient}
+                    <div className="flex items-center space-x-4">
+                      <div className="text-right">
+                        <div
+                          className={`text-lg font-bold ${
+                            transaction.type === "disbursement" ? "text-red-600" : "text-green-600"
+                          }`}
+                        >
+                          {transaction.type === "disbursement" ? "-" : "+"}${transaction.amount.toFixed(2)}
                         </div>
-                      )}
-                      {transaction.purpose && (
-                        <div className="text-sm">
-                          <span className="text-muted-foreground">Purpose:</span> {transaction.purpose}
-                        </div>
-                      )}
+                      </div>
+                      <Button variant="ghost" size="sm" onClick={() => setSelectedTransaction(transaction)}>
+                        <Eye className="h-4 w-4" />
+                      </Button>
                     </div>
                   </motion.div>
                 ))}
               </div>
             )}
+
+            {/* Pagination */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between mt-6">
+                <div className="text-sm text-muted-foreground">
+                  Showing {(currentPage - 1) * ITEMS_PER_PAGE + 1} to{" "}
+                  {Math.min(currentPage * ITEMS_PER_PAGE, filteredTransactions.length)} of {filteredTransactions.length}{" "}
+                  transactions
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(currentPage - 1)}
+                    disabled={currentPage === 1}
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                    Previous
+                  </Button>
+                  <span className="text-sm">
+                    Page {currentPage} of {totalPages}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(currentPage + 1)}
+                    disabled={currentPage === totalPages}
+                  >
+                    Next
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
+
+        {/* Transaction Detail Modal */}
+        <Modal isOpen={!!selectedTransaction} onClose={() => setSelectedTransaction(null)} title="Transaction Details">
+          {selectedTransaction && (
+            <div className="space-y-6">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-sm font-medium text-muted-foreground">Transaction ID</Label>
+                  <p className="font-mono text-sm">{selectedTransaction.id}</p>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium text-muted-foreground">Type</Label>
+                  <div className="mt-1">
+                    <Badge
+                      variant={
+                        selectedTransaction.type === "disbursement"
+                          ? "destructive"
+                          : selectedTransaction.type === "replenishment"
+                            ? "default"
+                            : "secondary"
+                      }
+                    >
+                      {selectedTransaction.type}
+                    </Badge>
+                  </div>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium text-muted-foreground">Date</Label>
+                  <p>{new Date(selectedTransaction.date).toLocaleDateString()}</p>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium text-muted-foreground">Amount</Label>
+                  <p
+                    className={`text-lg font-bold ${
+                      selectedTransaction.type === "disbursement" ? "text-red-600" : "text-green-600"
+                    }`}
+                  >
+                    {selectedTransaction.type === "disbursement" ? "-" : "+"}${selectedTransaction.amount.toFixed(2)}
+                  </p>
+                </div>
+                {selectedTransaction.purpose && (
+                  <div className="col-span-2">
+                    <Label className="text-sm font-medium text-muted-foreground">Purpose</Label>
+                    <p>{selectedTransaction.purpose}</p>
+                  </div>
+                )}
+                {selectedTransaction.recipient && (
+                  <div className="col-span-2">
+                    <Label className="text-sm font-medium text-muted-foreground">Recipient</Label>
+                    <p>{selectedTransaction.recipient}</p>
+                  </div>
+                )}
+                <div>
+                  <Label className="text-sm font-medium text-muted-foreground">Timestamp</Label>
+                  <p className="text-sm">{new Date(selectedTransaction.timestamp).toLocaleString()}</p>
+                </div>
+              </div>
+            </div>
+          )}
+        </Modal>
       </div>
     </AppLayout>
   )

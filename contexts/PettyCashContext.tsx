@@ -22,8 +22,9 @@ interface PettyCashState {
 type PettyCashAction =
   | { type: "INITIALIZE"; payload: { amount: number; date: string } }
   | { type: "DISBURSE"; payload: { amount: number; date: string; purpose: string; recipient: string } }
-  | { type: "REPLENISH"; payload: { amount: number; date: string } }
+  | { type: "REPLENISH"; payload: { amount: number; date: string; source?: string } }
   | { type: "LOAD_FROM_STORAGE"; payload: PettyCashState }
+  | { type: "RESET_FUND" }
 
 const initialState: PettyCashState = {
   balance: 0,
@@ -73,6 +74,7 @@ function pettyCashReducer(state: PettyCashState, action: PettyCashAction): Petty
         type: "replenishment",
         amount: action.payload.amount,
         date: action.payload.date,
+        purpose: action.payload.source ? `Replenishment from ${action.payload.source}` : undefined,
         timestamp: Date.now(),
       }
       return {
@@ -83,6 +85,9 @@ function pettyCashReducer(state: PettyCashState, action: PettyCashAction): Petty
 
     case "LOAD_FROM_STORAGE":
       return action.payload
+
+    case "RESET_FUND":
+      return initialState
 
     default:
       return state

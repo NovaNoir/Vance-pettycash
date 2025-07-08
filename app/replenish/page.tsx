@@ -10,11 +10,12 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 import { AppLayout } from "@/components/layout/AppLayout"
 import { Modal } from "@/components/ui/modal"
 import { usePettyCash } from "@/contexts/PettyCashContext"
 import { useToast } from "@/hooks/use-toast"
-import { Plus, DollarSign } from "lucide-react"
+import { Plus, AlertTriangle } from "lucide-react"
 
 // Predefined replenishment sources
 const REPLENISHMENT_SOURCES = [
@@ -22,7 +23,7 @@ const REPLENISHMENT_SOURCES = [
   "Cash from Main Account",
   "Cheque",
   "Credit Card",
-  "Online Transfer",
+  "Petty Cash Voucher",
   "Other",
 ]
 
@@ -30,13 +31,11 @@ export default function ReplenishPage() {
   const [amount, setAmount] = useState("")
   const [date, setDate] = useState(new Date().toISOString().split("T")[0])
   const [source, setSource] = useState("")
-  const [customSource, setCustomSource] = useState("")
   const [showModal, setShowModal] = useState(false)
   const [errors, setErrors] = useState<{
     amount?: string
     date?: string
     source?: string
-    customSource?: string
   }>({})
 
   const { state, dispatch } = usePettyCash()
@@ -51,7 +50,7 @@ export default function ReplenishPage() {
     if (!amount || isNaN(amountValue) || amountValue <= 0) {
       newErrors.amount = "Please enter a valid amount greater than 0"
     } else if (amountValue > 10000) {
-      newErrors.amount = "Amount seems unusually large. Please verify."
+      newErrors.amount = "Amount cannot exceed $10,000 for security reasons"
     }
 
     // Date validation
@@ -60,7 +59,7 @@ export default function ReplenishPage() {
     } else {
       const selectedDate = new Date(date)
       const today = new Date()
-      today.setHours(23, 59, 59, 999)
+      today.setHours(23, 59, 59, 999) // End of today
 
       if (selectedDate > today) {
         newErrors.date = "Date cannot be in the future"
@@ -72,13 +71,26 @@ export default function ReplenishPage() {
       newErrors.source = "Please select a replenishment source"
     }
 
-    // Custom source validation (only if "Other" is selected)
-    if (source === "Other" && !customSource.trim()) {
-      newErrors.customSource = "Please specify the source when selecting 'Other'"
-    }
-
     setErrors(newErrors)
     return Object.keys(newErrors).length === 0
+  }
+
+  const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value
+    setAmount(value)
+
+    // Real-time validation for amount
+    if (value && !isNaN(Number.parseFloat(value))) {
+      const amountValue = Number.parseFloat(value)
+      if (amountValue > 10000) {
+        setErrors((prev) => ({
+          ...prev,
+          amount: "Amount cannot exceed $10,000 for security reasons",
+        }))
+      } else {
+        setErrors((prev) => ({ ...prev, amount: undefined }))
+      }
+    }
   }
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -95,13 +107,14 @@ export default function ReplenishPage() {
       payload: {
         amount: Number.parseFloat(amount),
         date,
+        source,
       },
     })
 
     setShowModal(false)
     toast({
       title: "Fund Replenished",
-      description: `$${Number.parseFloat(amount).toFixed(2)} added to petty cash fund`,
+      description: `$${Number.parseFloat(amount).toFixed(2)} added from ${source}`,
     })
     router.push("/")
   }
@@ -125,6 +138,7 @@ export default function ReplenishPage() {
   }
 
   const newBalance = state.balance + (Number.parseFloat(amount) || 0)
+  const isLargeReplenishment = Number.parseFloat(amount) > 1000
 
   return (
     <AppLayout>
@@ -135,6 +149,17 @@ export default function ReplenishPage() {
             Current balance: <span className="font-medium">${state.balance.toFixed(2)}</span>
           </p>
         </div>
+
+        {/* Large Replenishment Warning */}
+        {isLargeReplenishment && (
+          <Alert className="border-yellow-200 bg-yellow-50 dark:border-yellow-800 dark:bg-yellow-950">
+            <AlertTriangle className="h-4 w-4 text-yellow-600" />
+            <AlertDescription className="text-yellow-800 dark:text-yellow-200">
+              <strong>Large Replenishment:</strong> This is a significant amount. Please ensure proper authorization and
+              documentation are in place.
+            </AlertDescription>
+          </Alert>
+        )}
 
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
           <Card>
@@ -154,14 +179,15 @@ export default function ReplenishPage() {
                       type="number"
                       step="0.01"
                       min="0"
+                      max="10000"
                       value={amount}
-                      onChange={(e) => setAmount(e.target.value)}
+                      onChange={handleAmountChange}
                       placeholder="0.00"
                       className={errors.amount ? "border-red-500" : ""}
                     />
                     {errors.amount && <p className="text-sm text-red-500">{errors.amount}</p>}
                     {amount && !errors.amount && (
-                      <p className="text-sm text-muted-foreground">New balance will be: ${newBalance.toFixed(2)}</p>
+                      <p className="text-sm text-muted-foreground">New balance: ${newBalance.toFixed(2)}</p>
                     )}
                   </div>
 
@@ -196,22 +222,7 @@ export default function ReplenishPage() {
                   {errors.source && <p className="text-sm text-red-500">{errors.source}</p>}
                 </div>
 
-                {source === "Other" && (
-                  <div className="space-y-2">
-                    <Label htmlFor="customSource">Specify Source *</Label>
-                    <Input
-                      id="customSource"
-                      value={customSource}
-                      onChange={(e) => setCustomSource(e.target.value)}
-                      placeholder="Please specify the replenishment source"
-                      className={errors.customSource ? "border-red-500" : ""}
-                    />
-                    {errors.customSource && <p className="text-sm text-red-500">{errors.customSource}</p>}
-                  </div>
-                )}
-
                 <Button type="submit" className="w-full" disabled={Object.keys(errors).length > 0}>
-                  <DollarSign className="h-4 w-4 mr-2" />
                   Replenish Fund
                 </Button>
               </form>
@@ -233,7 +244,11 @@ export default function ReplenishPage() {
               </div>
               <div className="flex justify-between">
                 <span>Source:</span>
-                <span className="font-medium">{source === "Other" ? customSource : source}</span>
+                <span className="font-medium">{source}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Current Balance:</span>
+                <span className="font-medium">${state.balance.toFixed(2)}</span>
               </div>
               <div className="flex justify-between border-t pt-2 font-medium">
                 <span>New Balance:</span>
