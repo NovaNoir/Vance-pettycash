@@ -1,10 +1,9 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { motion, AnimatePresence } from "framer-motion"
 import { X, ChevronLeft, ChevronRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 
 interface TourStep {
   target: string
@@ -57,79 +56,40 @@ export function GuidedTour({ steps, isOpen, onClose, onComplete }: GuidedTourPro
     setCurrentStep(0)
   }
 
-  const handleSkip = () => {
-    onClose()
-    setCurrentStep(0)
-  }
-
   if (!isOpen || !steps[currentStep]) return null
 
-  const step = steps[currentStep]
-
   return (
-    <AnimatePresence>
-      {isOpen && (
-        <>
-          {/* Overlay */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/50 z-[999]"
-            onClick={handleSkip}
-          />
+    <div className="fixed inset-0 z-50 bg-black/50">
+      <div className="absolute top-4 right-4">
+        <Card className="w-80">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-lg">{steps[currentStep].title}</CardTitle>
+              <Button variant="ghost" size="icon" onClick={onClose}>
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            <CardDescription>
+              Step {currentStep + 1} of {steps.length}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-sm">{steps[currentStep].content}</p>
 
-          {/* Tour Card */}
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.9 }}
-            className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-[1000] w-full max-w-md mx-4"
-          >
-            <Card>
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="text-sm text-muted-foreground">
-                    Step {currentStep + 1} of {steps.length}
-                  </div>
-                  <Button variant="ghost" size="icon" onClick={handleSkip}>
-                    <X className="h-4 w-4" />
-                  </Button>
-                </div>
+            <div className="flex justify-between">
+              <Button variant="outline" size="sm" onClick={handlePrevious} disabled={currentStep === 0}>
+                <ChevronLeft className="h-4 w-4 mr-1" />
+                Previous
+              </Button>
 
-                <h3 className="text-lg font-semibold mb-2">{step.title}</h3>
-                <p className="text-muted-foreground mb-6">{step.content}</p>
-
-                <div className="flex items-center justify-between">
-                  <Button
-                    variant="outline"
-                    onClick={handlePrevious}
-                    disabled={currentStep === 0}
-                    className="bg-transparent"
-                  >
-                    <ChevronLeft className="h-4 w-4 mr-1" />
-                    Previous
-                  </Button>
-
-                  <div className="flex space-x-1">
-                    {steps.map((_, index) => (
-                      <div
-                        key={index}
-                        className={`w-2 h-2 rounded-full ${index === currentStep ? "bg-primary" : "bg-muted"}`}
-                      />
-                    ))}
-                  </div>
-
-                  <Button onClick={handleNext}>
-                    {currentStep === steps.length - 1 ? "Complete" : "Next"}
-                    {currentStep < steps.length - 1 && <ChevronRight className="h-4 w-4 ml-1" />}
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
-        </>
-      )}
-    </AnimatePresence>
+              <Button size="sm" onClick={handleNext}>
+                {currentStep === steps.length - 1 ? "Finish" : "Next"}
+                {currentStep < steps.length - 1 && <ChevronRight className="h-4 w-4 ml-1" />}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
   )
 }

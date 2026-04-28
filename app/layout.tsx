@@ -2,16 +2,18 @@ import type React from "react"
 import type { Metadata } from "next"
 import { Inter } from "next/font/google"
 import "./globals.css"
-import { PettyCashProvider } from "@/contexts/PettyCashContext"
 import { ThemeProvider } from "@/components/theme-provider"
-import { Toaster } from "@/components/ui/toaster"
+import { PettyCashProvider } from "@/contexts/PettyCashContext"
+import { PrivacyProvider } from "@/contexts/PrivacyContext"
+import { AppLayout } from "@/components/layout/AppLayout"
+import { Toaster } from "@/components/ui/sonner"
 
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
   title: "Petty Cash Manager",
-  description: "Modern petty cash fund management system",
-    generator: 'v0.dev'
+  description: "A comprehensive petty cash management system",
+    generator: 'v0.app'
 }
 
 export default function RootLayout({
@@ -23,10 +25,12 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body className={inter.className}>
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
-          <PettyCashProvider>
-            {children}
-            <Toaster />
-          </PettyCashProvider>
+          <PrivacyProvider>
+            <PettyCashProvider>
+              <AppLayout>{children}</AppLayout>
+              <Toaster />
+            </PettyCashProvider>
+          </PrivacyProvider>
         </ThemeProvider>
       </body>
     </html>

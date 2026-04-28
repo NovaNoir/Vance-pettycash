@@ -73,46 +73,157 @@
     --sidebar-border: 240 3.7% 15.9%;
     --sidebar-ring: 217.2 91.2% 59.8%;
   }
+
+  /* Blue Theme */
+  .blue {
+    --background: 214 100% 97%;
+    --foreground: 214 100% 11%;
+    --card: 214 100% 100%;
+    --card-foreground: 214 100% 11%;
+    --popover: 214 100% 100%;
+    --popover-foreground: 214 100% 11%;
+    --primary: 214 100% 50%;
+    --primary-foreground: 214 100% 98%;
+    --secondary: 214 30% 90%;
+    --secondary-foreground: 214 100% 11%;
+    --muted: 214 30% 90%;
+    --muted-foreground: 214 30% 40%;
+    --accent: 214 30% 90%;
+    --accent-foreground: 214 100% 11%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 214 30% 82%;
+    --input: 214 30% 82%;
+    --ring: 214 100% 50%;
+    --chart-1: 214 100% 60%;
+    --chart-2: 200 100% 50%;
+    --chart-3: 190 100% 45%;
+    --chart-4: 180 100% 40%;
+    --chart-5: 170 100% 35%;
+  }
+
+  /* Green Theme */
+  .green {
+    --background: 120 60% 97%;
+    --foreground: 120 60% 11%;
+    --card: 120 60% 100%;
+    --card-foreground: 120 60% 11%;
+    --popover: 120 60% 100%;
+    --popover-foreground: 120 60% 11%;
+    --primary: 120 60% 50%;
+    --primary-foreground: 120 60% 98%;
+    --secondary: 120 30% 90%;
+    --secondary-foreground: 120 60% 11%;
+    --muted: 120 30% 90%;
+    --muted-foreground: 120 30% 40%;
+    --accent: 120 30% 90%;
+    --accent-foreground: 120 60% 11%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 120 30% 82%;
+    --input: 120 30% 82%;
+    --ring: 120 60% 50%;
+    --chart-1: 120 60% 60%;
+    --chart-2: 140 60% 50%;
+    --chart-3: 160 60% 45%;
+    --chart-4: 100 60% 40%;
+    --chart-5: 80 60% 35%;
+  }
+
+  /* Purple Theme */
+  .purple {
+    --background: 270 60% 97%;
+    --foreground: 270 60% 11%;
+    --card: 270 60% 100%;
+    --card-foreground: 270 60% 11%;
+    --popover: 270 60% 100%;
+    --popover-foreground: 270 60% 11%;
+    --primary: 270 60% 50%;
+    --primary-foreground: 270 60% 98%;
+    --secondary: 270 30% 90%;
+    --secondary-foreground: 270 60% 11%;
+    --muted: 270 30% 90%;
+    --muted-foreground: 270 30% 40%;
+    --accent: 270 30% 90%;
+    --accent-foreground: 270 60% 11%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 270 30% 82%;
+    --input: 270 30% 82%;
+    --ring: 270 60% 50%;
+    --chart-1: 270 60% 60%;
+    --chart-2: 290 60% 50%;
+    --chart-3: 250 60% 45%;
+    --chart-4: 310 60% 40%;
+    --chart-5: 230 60% 35%;
+  }
+
+  /* Orange Theme */
+  .orange {
+    --background: 30 100% 97%;
+    --foreground: 30 100% 11%;
+    --card: 30 100% 100%;
+    --card-foreground: 30 100% 11%;
+    --popover: 30 100% 100%;
+    --popover-foreground: 30 100% 11%;
+    --primary: 30 100% 50%;
+    --primary-foreground: 30 100% 98%;
+    --secondary: 30 30% 90%;
+    --secondary-foreground: 30 100% 11%;
+    --muted: 30 30% 90%;
+    --muted-foreground: 30 30% 40%;
+    --accent: 30 30% 90%;
+    --accent-foreground: 30 100% 11%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 30 30% 82%;
+    --input: 30 30% 82%;
+    --ring: 30 100% 50%;
+    --chart-1: 30 100% 60%;
+    --chart-2: 45 100% 50%;
+    --chart-3: 15 100% 45%;
+    --chart-4: 60 100% 40%;
+    --chart-5: 0 100% 35%;
+  }
 }
 
 @layer base {
   * {
     @apply border-border;
   }
+
   body {
     @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+
+  /* Improved scrollbar styling */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-muted/30;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-muted-foreground/30 rounded-md;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-muted-foreground/50;
+  }
+
+  /* Focus styles */
+  .focus-visible {
+    @apply outline-none ring-2 ring-ring ring-offset-2 ring-offset-background;
   }
 }
 
 @layer components {
-  .skeleton {
-    @apply animate-pulse bg-muted rounded;
-  }
-
-  .custom-scrollbar {
-    scrollbar-width: thin;
-    scrollbar-color: hsl(var(--muted-foreground)) transparent;
-  }
-
-  .custom-scrollbar::-webkit-scrollbar {
-    width: 6px;
-  }
-
-  .custom-scrollbar::-webkit-scrollbar-track {
-    background: transparent;
-  }
-
-  .custom-scrollbar::-webkit-scrollbar-thumb {
-    background-color: hsl(var(--muted-foreground));
-    border-radius: 3px;
-  }
-
-  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-    background-color: hsl(var(--foreground));
-  }
-}
-
-@layer utilities {
+  /* Typography hierarchy */
   .text-hierarchy-1 {
     @apply text-3xl font-bold tracking-tight;
   }
@@ -125,14 +236,15 @@
     @apply text-xl font-semibold;
   }
 
-  .text-body {
-    @apply text-base;
+  .text-hierarchy-4 {
+    @apply text-lg font-medium;
   }
 
   .text-caption {
     @apply text-sm text-muted-foreground;
   }
 
+  /* Layout utilities */
   .section-spacing {
     @apply space-y-8;
   }
@@ -145,24 +257,198 @@
     @apply space-y-6;
   }
 
+  /* Interactive elements */
   .card-interactive {
-    @apply cursor-pointer transition-all duration-200 hover:shadow-md hover:scale-[1.02];
+    @apply cursor-pointer transition-all duration-200 hover:shadow-md hover:scale-[1.02] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2;
   }
 
   .hover-lift {
     @apply transition-transform duration-200 hover:-translate-y-1;
   }
 
-  .focus-ring {
-    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2;
-  }
-
   .transition-smooth {
     @apply transition-all duration-200 ease-in-out;
   }
 
+  /* Form improvements */
+  .form-field {
+    @apply space-y-2;
+  }
+
+  .form-label {
+    @apply text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70;
+  }
+
+  .form-input {
+    @apply flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .form-error {
+    @apply text-sm text-destructive;
+  }
+
+  .form-help {
+    @apply text-sm text-muted-foreground;
+  }
+
+  /* Status indicators */
+  .status-success {
+    @apply bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400;
+  }
+
+  .status-warning {
+    @apply bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400;
+  }
+
+  .status-error {
+    @apply bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400;
+  }
+
+  .status-info {
+    @apply bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400;
+  }
+
+  /* Animation utilities */
+  .animate-fade-in {
+    animation: fadeIn 0.3s ease-out;
+  }
+
+  .animate-slide-up {
+    animation: slideUp 0.3s ease-out;
+  }
+
+  .animate-scale-in {
+    animation: scaleIn 0.2s ease-out;
+  }
+
   .animate-slide-in-left {
     animation: slideInLeft 0.3s ease-out;
+  }
+
+  .animate-slide-in-right {
+    animation: slideInRight 0.3s ease-out;
+  }
+
+  /* Data visualization */
+  .chart-container {
+    @apply w-full h-full;
+  }
+
+  .chart-tooltip {
+    @apply bg-background border rounded-lg p-3 shadow-lg;
+  }
+
+  /* Table improvements */
+  .data-table {
+    @apply w-full border-collapse;
+  }
+
+  .data-table th {
+    @apply border-b border-border px-4 py-3 text-left font-medium text-muted-foreground bg-muted/50;
+  }
+
+  .data-table td {
+    @apply border-b border-border px-4 py-3;
+  }
+
+  .data-table tr:hover {
+    @apply bg-muted/50;
+  }
+
+  .data-table tr:last-child td {
+    @apply border-b-0;
+  }
+
+  /* Card improvements */
+  .metric-card {
+    @apply rounded-lg border bg-card text-card-foreground shadow-sm p-6;
+  }
+
+  .metric-card-header {
+    @apply flex items-center justify-between space-y-0 pb-2;
+  }
+
+  .metric-card-title {
+    @apply text-sm font-medium;
+  }
+
+  .metric-card-value {
+    @apply text-2xl font-bold;
+  }
+
+  .metric-card-description {
+    @apply text-xs text-muted-foreground;
+  }
+
+  /* Navigation improvements */
+  .nav-item {
+    @apply flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground;
+  }
+
+  .nav-item.active {
+    @apply bg-accent text-accent-foreground;
+  }
+
+  .nav-item-icon {
+    @apply h-4 w-4 shrink-0;
+  }
+
+  /* Loading states */
+  .skeleton {
+    @apply animate-pulse bg-muted rounded;
+  }
+
+  .loading-overlay {
+    @apply fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center;
+  }
+
+  /* Empty states */
+  .empty-state {
+    @apply text-center p-12 text-muted-foreground;
+  }
+
+  .empty-state-icon {
+    @apply h-12 w-12 mx-auto mb-4 text-muted-foreground/50;
+  }
+
+  .empty-state-title {
+    @apply text-lg font-medium mb-2;
+  }
+
+  .empty-state-description {
+    @apply text-sm text-muted-foreground;
+  }
+}
+
+/* Keyframe animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(10px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes scaleIn {
+  from {
+    transform: scale(0.95);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
   }
 }
 
@@ -174,5 +460,96 @@
   to {
     transform: translateX(0);
     opacity: 1;
+  }
+}
+
+@keyframes slideInRight {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+/* Print styles */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+
+  .print-break-before {
+    page-break-before: always;
+  }
+
+  .print-break-after {
+    page-break-after: always;
+  }
+
+  body {
+    @apply text-black bg-white;
+  }
+
+  .card {
+    @apply border border-gray-300 shadow-none;
+  }
+
+  .metric-card {
+    @apply border border-gray-300 shadow-none;
+  }
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  .border {
+    @apply border-2;
+  }
+
+  .button {
+    @apply border-2 border-current;
+  }
+
+  .card {
+    @apply border-2;
+  }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  .animate-fade-in,
+  .animate-slide-up,
+  .animate-scale-in,
+  .animate-slide-in-left,
+  .animate-slide-in-right {
+    animation: none !important;
+  }
+}
+
+/* Mobile optimizations */
+@media (max-width: 768px) {
+  .text-hierarchy-1 {
+    @apply text-2xl;
+  }
+
+  .text-hierarchy-2 {
+    @apply text-xl;
+  }
+
+  .metric-card {
+    @apply p-4;
+  }
+
+  .metric-card-value {
+    @apply text-xl;
   }
 }

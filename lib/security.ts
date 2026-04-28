@@ -1,156 +1,186 @@
-import DOMPurify from "isomorphic-dompurify"
+// Security utilities for petty cash management
+export const SUPPORTED_CURRENCIES = {
+  USD: { symbol: "$", name: "US Dollar", decimals: 2 },
+  EUR: { symbol: "€", name: "Euro", decimals: 2 },
+  GBP: { symbol: "£", name: "British Pound", decimals: 2 },
+  CAD: { symbol: "C$", name: "Canadian Dollar", decimals: 2 },
+  AUD: { symbol: "A$", name: "Australian Dollar", decimals: 2 },
+  JPY: { symbol: "¥", name: "Japanese Yen", decimals: 0 },
+  CHF: { symbol: "CHF", name: "Swiss Franc", decimals: 2 },
+  CNY: { symbol: "¥", name: "Chinese Yuan", decimals: 2 },
+  INR: { symbol: "₹", name: "Indian Rupee", decimals: 2 },
+  BRL: { symbol: "R$", name: "Brazilian Real", decimals: 2 },
+} as const
 
-/* ----------------------------------------------------------------
- *  Sanitation helpers
- * ---------------------------------------------------------------- */
-export const sanitizeInput = (input: string): string => (input ? DOMPurify.sanitize(input.trim()) : "")
+export type SupportedCurrency = keyof typeof SUPPORTED_CURRENCIES
 
-/**
- * Convert a user-entered money string to a positive number.
- * Strips everything except digits, - (minus) & . (decimal point).
- */
-export const sanitizeAmount = (amount: string): number => {
-  const numeric = amount.replace(/[^0-9.-]/g, "")
-  const parsed = Number.parseFloat(numeric)
-  return isNaN(parsed) ? 0 : Math.max(0, parsed)
+export interface ValidationResult {
+  isValid: boolean
+  error?: string
 }
 
-/* ----------------------------------------------------------------
- *  Validation helpers
- * ---------------------------------------------------------------- */
-export const validateEmail = (email: string): boolean => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
-
-export const validateAmount = (amount: number, max?: number): { isValid: boolean; error?: string } => {
-  if (amount <= 0) return { isValid: false, error: "Amount must be greater than 0" }
-  if (max && amount > max)
-    return {
-      isValid: false,
-      error: `Amount cannot exceed ${max.toFixed(2)}`,
+// Amount validation and sanitization
+export function sanitizeAmount(amount: string | number): number {
+  if (typeof amount === "number") {
+    if (isNaN(amount) || !isFinite(amount)) {
+      throw new Error("Amount must be a valid number")
     }
-  return { isValid: true }
-}
-
-export const validateDate = (date: string): { isValid: boolean; error?: string } => {
-  const selected = new Date(date)
-  const today = new Date()
-
-  if (isNaN(selected.getTime())) return { isValid: false, error: "Invalid date format" }
-  if (selected > today) return { isValid: false, error: "Date cannot be in the future" }
-  return { isValid: true }
-}
-
-/* ----------------------------------------------------------------
- *  Rate limiting (client-side only)
- * ---------------------------------------------------------------- */
-class RateLimiter {
-  private attempts = new Map<string, number[]>()
-
-  isAllowed(key: string, maxAttempts = 5, windowMs = 60_000): boolean {
-    const now = Date.now()
-    const windowAttempts = this.attempts.get(key) ?? []
-    const recent = windowAttempts.filter((t) => now - t < windowMs)
-
-    if (recent.length >= maxAttempts) return false
-
-    recent.push(now)
-    this.attempts.set(key, recent)
-    return true
+    return Math.max(0, Math.round(amount * 100) / 100)
   }
 
-  reset(key: string) {
-    this.attempts.delete(key)
+  if (typeof amount === "string") {
+    const cleaned = amount.replace(/[^\d.-]/g, "")
+    const parsed = Number.parseFloat(cleaned)
+
+    if (isNaN(parsed) || !isFinite(parsed)) {
+      throw new Error("Amount must be a valid number")
+    }
+
+    return Math.max(0, Math.round(parsed * 100) / 100)
+  }
+
+  throw new Error("Amount must be a valid number")
+}
+
+export function validateAmount(amount: string | number): ValidationResult {
+  try {
+    const sanitized = sanitizeAmount(amount)
+    if (sanitized < 0) {
+      return { isValid: false, error: "Amount cannot be negative" }
+    }
+    if (sanitized > 999999.99) {
+      return { isValid: false, error: "Amount exceeds maximum limit" }
+    }
+    return { isValid: true }
+  } catch (error) {
+    return { isValid: false, error: (error as Error).message }
   }
 }
 
-export const rateLimiter = new RateLimiter()
+// Input sanitization
+export function sanitizeInput(input: string): string {
+  if (typeof input !== "string") return ""
+  return input.trim().replace(/[<>]/g, "").substring(0, 500)
+}
 
-/* ----------------------------------------------------------------
- *  Error logging (restored)
- * ---------------------------------------------------------------- */
-export const logError = (error: Error, context?: Record<string, unknown>) => {
-  const payload = {
-    message: error.message,
-    stack: error.stack,
-    context,
-    timestamp: new Date().toISOString(),
-    userAgent: typeof window !== "undefined" ? window.navigator.userAgent : "server-side",
-  }
-
-  // eslint-disable-next-line no-console
-  console.error("Application Error:", payload)
-
-  /* Example: send to an external service
-     fetch("/api/log", { method: "POST", body: JSON.stringify(payload) })
-  */
-
-  if (typeof window !== "undefined" && (window as any).gtag) {
-    ;(window as any).gtag("event", "exception", {
-      description: error.message,
-      fatal: false,
-    })
+// Date validation
+export function validateDate(date: string | Date): ValidationResult {
+  try {
+    const dateObj = typeof date === "string" ? new Date(date) : date
+    if (isNaN(dateObj.getTime())) {
+      return { isValid: false, error: "Invalid date" }
+    }
+    return { isValid: true }
+  } catch {
+    return { isValid: false, error: "Invalid date format" }
   }
 }
 
-/* ----------------------------------------------------------------
- *  Misc. helpers
- * ---------------------------------------------------------------- */
-export const generateSessionId = (): string => {
-  const bytes = new Uint8Array(32)
-  if (typeof window !== "undefined" && window.crypto) {
-    window.crypto.getRandomValues(bytes)
+// Safe arithmetic operations
+export function safeAdd(a: number, b: number): number {
+  const result = Math.round((a + b) * 100) / 100
+  if (!isFinite(result)) {
+    throw new Error("Arithmetic overflow")
   }
-  return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("")
+  return result
 }
 
-export const isSecureContext = (): boolean =>
-  typeof window !== "undefined" ? window.isSecureContext || window.location.protocol === "https:" : true
-
-/* ----------------------------------------------------------------
- *  Optional secure localStorage wrapper (retains previous addition)
- * ---------------------------------------------------------------- */
-const generateHash = (data: string): string => {
-  let hash = 0
-  for (let i = 0; i < data.length; i++) {
-    // eslint-disable-next-line no-bitwise
-    hash = (hash << 5) - hash + data.charCodeAt(i)
-    // eslint-disable-next-line no-bitwise
-    hash |= 0
+export function safeSubtract(a: number, b: number): number {
+  const result = Math.round((a - b) * 100) / 100
+  if (!isFinite(result)) {
+    throw new Error("Arithmetic overflow")
   }
-  return Math.abs(hash).toString(36)
+  return result
 }
 
+// Secure storage wrapper
 export const secureStorage = {
-  setItem(key: string, value: unknown): void {
+  setItem: (key: string, value: any): void => {
     try {
-      const serialized = JSON.stringify({
-        data: value,
-        time: Date.now(),
-        hash: generateHash(JSON.stringify(value)),
-      })
-      localStorage.setItem(key, serialized)
-    } catch (err) {
-      console.error("secureStorage.setItem failed:", err)
+      const serialized = JSON.stringify(value)
+      localStorage.setItem(`pettycash_${key}`, serialized)
+    } catch (error) {
+      console.error("Failed to save to storage:", error)
     }
   },
 
-  getItem<T = unknown>(key: string): T | null {
+  getItem: <T>(key: string): T | null => {
     try {
-      const raw = localStorage.getItem(key)
-      if (!raw) return null
-      const parsed = JSON.parse(raw)
-      if (generateHash(JSON.stringify(parsed.data)) !== parsed.hash) {
-        console.warn("secureStorage integrity check failed for", key)
-        localStorage.removeItem(key)
-        return null
-      }
-      return parsed.data as T
-    } catch (err) {
-      console.error("secureStorage.getItem failed:", err)
+      const item = localStorage.getItem(`pettycash_${key}`)
+      return item ? JSON.parse(item) : null
+    } catch (error) {
+      console.error("Failed to load from storage:", error)
       return null
     }
   },
 
-  removeItem(key: string): void {
-    localStorage.removeItem(key)
-  },
+  removeItem: (key: string): void => {
+    try {
+      localStorage.removeItem(`pettycash_${key}`)
+    } catch (error) {
+      console.error("Failed to remove from storage:", error)
+    }
+  }
+}
+
+// Error logging
+export function logError(error: Error, context?: string): void {
+  const errorInfo = {
+    message: error.message,
+    stack: error.stack,
+    context,
+    timestamp: new Date().toISOString(),
+  }
+
+  console.error("Application Error:", errorInfo)
+
+  // In a real app, you might send this to an error tracking service
+  // Example: sendToErrorService(errorInfo)
+}
+
+// Currency formatting
+export function formatCurrency(amount: number, currency: SupportedCurrency = "USD"): string {
+  try {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: currency,
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(amount)
+  } catch {
+    return `${currency} ${amount.toFixed(2)}`
+  }
+}
+
+// Rate limiting for sensitive operations
+const rateLimits = new Map<string, { count: number; resetTime: number }>()
+
+export function checkRateLimit(key: string, maxAttempts: number = 5, windowMs: number = 60000): boolean {
+  const now = Date.now()
+  const limit = rateLimits.get(key)
+
+  if (!limit || now > limit.resetTime) {
+    rateLimits.set(key, { count: 1, resetTime: now + windowMs })
+    return true
+  }
+
+  if (limit.count >= maxAttempts) {
+    return false
+  }
+
+  limit.count++
+  return true
+}
+
+// Generate secure IDs
+export function generateSecureId(prefix: string = ""): string {
+  const timestamp = Date.now().toString(36)
+  const random = Math.random().toString(36).substring(2, 15)
+  return `${prefix}${prefix ? "_" : ""}${timestamp}_${random}`
+}
+
+// Rate limiter object for export
+export const rateLimiter = {
+  check: checkRateLimit,
+  limits: rateLimits,
 }
