@@ -172,15 +172,13 @@ export function checkRateLimit(key: string, maxAttempts: number = 5, windowMs: n
   return true
 }
 
+export const rateLimiter = {
+  check: checkRateLimit
+}
+
 // Generate secure IDs
 export function generateSecureId(prefix: string = ""): string {
   const timestamp = Date.now().toString(36)
   const random = Math.random().toString(36).substring(2, 15)
   return `${prefix}${prefix ? "_" : ""}${timestamp}_${random}`
-}
-
-// Rate limiter object for export
-export const rateLimiter = {
-  check: checkRateLimit,
-  limits: rateLimits,
 }

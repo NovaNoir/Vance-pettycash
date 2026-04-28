@@ -20,5 +20,5 @@ export function useMobile() {
   return !!isMobile
 }
 
-// Alias for useIsMobile compatibility
+// Alias export for alternative naming convention
 export const useIsMobile = useMobile
